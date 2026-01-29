@@ -60,64 +60,32 @@ WATCHLIST = {
 - Include year if needed: `"2023-24 wembanyama"` 
 - Include grade for graded cards: `"psa 10"`, `"bgs 9.5"`
 
-## Automated Hourly Scans (Mac/Linux)
+## Scheduled Runs (macOS LaunchAgent)
 
-### Option 1: Cron Job
+The script runs automatically at **7:00 AM** and **7:00 PM** daily via LaunchAgent.
 
-```bash
-# Open crontab editor
-crontab -e
-
-# Add this line (runs every hour at :00)
-0 * * * * /usr/bin/python3 /path/to/ebay_card_monitor.py >> /path/to/monitor.log 2>&1
-```
-
-### Option 2: macOS LaunchAgent (Recommended for Mac)
-
-1. Create `~/Library/LaunchAgents/com.sambricksquad.ebaymonitor.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.sambricksquad.ebaymonitor</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/bin/python3</string>
-        <string>/Users/YOUR_USERNAME/ebay_card_monitor.py</string>
-    </array>
-    <key>StartInterval</key>
-    <integer>3600</integer>
-    <key>StandardOutPath</key>
-    <string>/Users/YOUR_USERNAME/ebay_monitor.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/YOUR_USERNAME/ebay_monitor_error.log</string>
-</dict>
-</plist>
-```
-
-2. Load it:
-```bash
-launchctl load ~/Library/LaunchAgents/com.sambricksquad.ebaymonitor.plist
-```
-
-## Scheduled Runs
-
-The script is configured to run automatically at **7:00 AM** and **7:00 PM** daily via cron.
-
-To view or edit the schedule:
+### LaunchAgent Commands
 
 ```bash
-crontab -e
+# Test run now
+launchctl start com.ebay.cardmonitor
+
+# Check status
+launchctl list | grep ebay
+
+# View logs
+tail -f ~/Documents/ebay-search/monitor.log
+
+# Stop/disable
+launchctl unload ~/Library/LaunchAgents/com.ebay.cardmonitor.plist
+
+# Re-enable
+launchctl load ~/Library/LaunchAgents/com.ebay.cardmonitor.plist
 ```
 
-To disable scheduled runs:
+### Note on Sleep
 
-```bash
-crontab -l | grep -v ebay_card_monitor | crontab -
-```
+If your Mac is asleep at 7am/7pm, the script runs when it wakes up. To ensure it runs on time, set auto-wake in **System Settings → Energy**.
 
 ## Email Alerts
 
