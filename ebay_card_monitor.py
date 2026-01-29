@@ -33,6 +33,7 @@ WATCHLIST = {
     "Amen Thompson 150 silver PSA 9": 31.00,
     "tre johnson iii d-6 refractor": 5.00,
     "dylan harper d-2 refractor": 7.00,
+    "Stephon Castle 234 silver PSA 9": 49.00,
     # Add more cards here...
 }
 
