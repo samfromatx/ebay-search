@@ -89,7 +89,7 @@ class EbayCardMonitor:
         listings = []
 
         try:
-            page.goto(url, wait_until="networkidle", timeout=60000)
+            page.goto(url, wait_until="load", timeout=60000)
 
             # Wait for results to load - try multiple selectors
             try:
@@ -241,6 +241,13 @@ class EbayCardMonitor:
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--single-process",
+                    "--no-zygote",
                 ]
             )
             print("Browser ready.\n")
