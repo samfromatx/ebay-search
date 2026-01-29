@@ -29,19 +29,19 @@ except ImportError:
 # ============== CONFIGURATION ==============
 
 WATCHLIST = {
-    "Amen Thompson 150 PSA 9": 32.00,
+    "Amen Thompson 150 silver PSA 9": 31.00,
     "tre johnson iii d-6 refractor": 5.00,
-    "dylan harper d-2 refractor": 9.00,
+    "dylan harper d-2 refractor": 7.00,
     # Add more cards here...
 }
 
 EMAIL_CONFIG = {
-    "enabled": False,
+    "enabled": True,
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
-    "sender_email": "your_email@gmail.com",
-    "sender_password": "your_app_password",
-    "recipient_email": "your_email@gmail.com",
+    "sender_email": "sam.white1@gmail.com",
+    "sender_password": "wezq rmns vsno xgrw",
+    "recipient_email": "sam.white1@gmail.com",
 }
 
 SEEN_LISTINGS_FILE = Path("seen_listings.json")
