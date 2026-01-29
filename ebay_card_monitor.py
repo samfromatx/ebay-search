@@ -29,8 +29,9 @@ except ImportError:
 # ============== CONFIGURATION ==============
 
 WATCHLIST = {
-    "victor wembanyama 136 silver": 160.00,
+    "Amen Thompson 150 PSA 9": 32.00,
     "tre johnson iii d-6 refractor": 5.00,
+    "dylan harper d-2 refractor": 9.00,
     # Add more cards here...
 }
 
@@ -172,7 +173,7 @@ class EbayCardMonitor:
         deals = []
 
         for listing in listings:
-            if listing["total_price"] <= max_price:
+            if listing["price"] <= max_price:
                 if not self.title_matches_all_terms(listing["title"], query):
                     continue
                 if listing["item_id"] and listing["item_id"] not in self.seen_listings:
@@ -243,7 +244,8 @@ class EbayCardMonitor:
                 if deals:
                     print(f"   ✅ Found {len(deals)} deal(s)!\n")
                     for deal in deals:
-                        print(f"      ${deal['total_price']:.2f} - {deal['title'][:60]}...")
+                        shipping_str = f" + ${deal['shipping']:.2f} ship" if deal['shipping'] > 0 else " (free ship)"
+                        print(f"      ${deal['price']:.2f}{shipping_str} - {deal['title'][:55]}...")
                         print(f"      {deal['link']}\n")
                     all_deals.extend(deals)
                     self.send_email_alert(deals, query, max_price)
