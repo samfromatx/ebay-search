@@ -89,11 +89,11 @@ class EbayCardMonitor:
         listings = []
 
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
             # Wait for results to load
-            page.wait_for_selector(".srp-results", timeout=15000)
-            time.sleep(2)  # Let JS finish rendering
+            page.wait_for_selector(".srp-results", timeout=30000)
+            time.sleep(3)  # Let JS finish rendering
 
             items = page.query_selector_all("li.s-card")
             print(f"   Found {len(items)} raw listings")
@@ -229,18 +229,28 @@ class EbayCardMonitor:
         
         with sync_playwright() as p:
             print("Starting browser...")
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080}
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ]
             )
-            page = context.new_page()
             print("Browser ready.\n")
-            
+
             for query, max_price in WATCHLIST.items():
                 print(f"Searching: {query}")
                 print(f"   Max price: ${max_price:.2f}")
-                
+
+                # Create fresh context and page for each search to avoid crashes
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080}
+                )
+                page = context.new_page()
+
                 deals = self.find_deals(page, query, max_price)
                 
                 if deals:
@@ -253,7 +263,8 @@ class EbayCardMonitor:
                     self.send_email_alert(deals, query, max_price)
                 else:
                     print(f"   ❌ No deals under ${max_price:.2f}\n")
-                
+
+                context.close()
                 time.sleep(random.uniform(3, 5))
             
             browser.close()
