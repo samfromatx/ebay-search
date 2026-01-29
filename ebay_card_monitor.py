@@ -89,10 +89,15 @@ class EbayCardMonitor:
         listings = []
 
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.goto(url, wait_until="networkidle", timeout=60000)
 
-            # Wait for results to load
-            page.wait_for_selector(".srp-results", timeout=30000)
+            # Wait for results to load - try multiple selectors
+            try:
+                page.wait_for_selector(".srp-results", timeout=20000)
+            except Exception:
+                # Fallback: wait for any listing cards
+                page.wait_for_selector("li.s-card", timeout=20000)
+
             time.sleep(3)  # Let JS finish rendering
 
             items = page.query_selector_all("li.s-card")
@@ -265,7 +270,7 @@ class EbayCardMonitor:
                     print(f"   ❌ No deals under ${max_price:.2f}\n")
 
                 context.close()
-                time.sleep(random.uniform(3, 5))
+                time.sleep(random.uniform(8, 12))  # Longer delay to avoid rate limiting
             
             browser.close()
         
