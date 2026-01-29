@@ -89,16 +89,11 @@ class EbayCardMonitor:
         listings = []
 
         try:
-            page.goto(url, wait_until="load", timeout=60000)
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-            # Wait for results to load - try multiple selectors
-            try:
-                page.wait_for_selector(".srp-results", timeout=20000)
-            except Exception:
-                # Fallback: wait for any listing cards
-                page.wait_for_selector("li.s-card", timeout=20000)
-
-            time.sleep(3)  # Let JS finish rendering
+            # Wait for results to load
+            page.wait_for_selector(".srp-results", timeout=15000)
+            time.sleep(2)  # Let JS finish rendering
 
             items = page.query_selector_all("li.s-card")
             print(f"   Found {len(items)} raw listings")
@@ -234,22 +229,7 @@ class EbayCardMonitor:
         
         with sync_playwright() as p:
             print("Starting browser...")
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-default-apps",
-                    "--disable-sync",
-                    "--disable-translate",
-                    "--single-process",
-                    "--no-zygote",
-                ]
-            )
+            browser = p.chromium.launch(headless=True)
             print("Browser ready.\n")
 
             for query, max_price in WATCHLIST.items():
@@ -277,7 +257,7 @@ class EbayCardMonitor:
                     print(f"   ❌ No deals under ${max_price:.2f}\n")
 
                 context.close()
-                time.sleep(random.uniform(8, 12))  # Longer delay to avoid rate limiting
+                time.sleep(random.uniform(3, 5))
             
             browser.close()
         
