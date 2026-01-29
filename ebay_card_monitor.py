@@ -14,6 +14,7 @@ import json
 import time
 import random
 import re
+import os
 from datetime import datetime
 from pathlib import Path
 import smtplib
@@ -40,7 +41,7 @@ EMAIL_CONFIG = {
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
     "sender_email": "sam.white1@gmail.com",
-    "sender_password": "wezq rmns vsno xgrw",
+    "sender_password": os.environ.get("EMAIL_PASSWORD", "wezq rmns vsno xgrw"),
     "recipient_email": "sam.white1@gmail.com",
 }
 
