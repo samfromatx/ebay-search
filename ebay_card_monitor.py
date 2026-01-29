@@ -29,8 +29,8 @@ except ImportError:
 # ============== CONFIGURATION ==============
 
 WATCHLIST = {
-    "victor wembanyama 136 silver": 550.00,
-    "tre johnson iii d-6 refractor": 10.00,
+    "victor wembanyama 136 silver": 160.00,
+    "tre johnson iii d-6 refractor": 5.00,
     # Add more cards here...
 }
 
@@ -161,18 +161,26 @@ class EbayCardMonitor:
 
         return listings
 
+    def title_matches_all_terms(self, title: str, query: str) -> bool:
+        """Check if the title contains all search terms from the query."""
+        title_lower = title.lower()
+        terms = query.lower().split()
+        return all(term in title_lower for term in terms)
+
     def find_deals(self, page, query: str, max_price: float) -> list[dict]:
         listings = self.scrape_listings(page, query)
         deals = []
-        
+
         for listing in listings:
             if listing["total_price"] <= max_price:
+                if not self.title_matches_all_terms(listing["title"], query):
+                    continue
                 if listing["item_id"] and listing["item_id"] not in self.seen_listings:
                     deals.append(listing)
                     self.seen_listings.add(listing["item_id"])
                 elif not listing["item_id"]:
                     deals.append(listing)
-        
+
         return deals
 
     def send_email_alert(self, deals: list[dict], query: str, max_price: float):
