@@ -283,11 +283,16 @@ class EbayCardMonitor:
         if total_items == 0:
             return
 
+        # URL encode the query for the clear link
+        from urllib.parse import quote
+        clear_link = f"http://localhost:5050/clear?query={quote(query)}"
+
         subject = f"eBay Deal Alert: {total_items} item(s) for {query}"
 
         body = f"Deals found for: {query}\n"
         body += f"Your max BIN price: ${max_price:.2f}\n"
         body += f"Auction target: under ${max_price * 0.5:.2f} (50%)\n\n"
+        body += f"🔄 Clear history to see these again: {clear_link}\n\n"
         body += "=" * 50 + "\n\n"
 
         if deals:
