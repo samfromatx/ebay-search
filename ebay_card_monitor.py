@@ -292,7 +292,8 @@ class EbayCardMonitor:
         body = f"Deals found for: {query}\n"
         body += f"Your max BIN price: ${max_price:.2f}\n"
         body += f"Auction target: under ${max_price * 0.5:.2f} (50%)\n\n"
-        body += f"🔄 Clear history to see these again: {clear_link}\n\n"
+        body += f"🔄 Clear this search: {clear_link}\n"
+        body += f"🗑️ Clear all history: http://localhost:5050/clear-all\n\n"
         body += "=" * 50 + "\n\n"
 
         if deals:
