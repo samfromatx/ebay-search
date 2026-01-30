@@ -173,6 +173,7 @@ class EbayCardMonitor:
                     bids = 0
                     time_left_hours = None
                     location = ""
+                    has_bid_info = False
                     attr_rows = item.query_selector_all(".s-card__attribute-row")
                     for row in attr_rows:
                         row_text = row.inner_text().strip().lower()
@@ -184,6 +185,7 @@ class EbayCardMonitor:
                                 if shipping_price:
                                     shipping_cost = shipping_price
                         if "bid" in row_text:
+                            has_bid_info = True
                             bids = self.parse_bid_count(row_text)
                             # Time is often in the same row as bids: "0 bids · Time left 23h 40m left"
                             if "left" in row_text:
@@ -196,6 +198,10 @@ class EbayCardMonitor:
                         continue
                     # Skip China specifically
                     if "china" in location:
+                        continue
+
+                    # For BIN searches, skip listings that show bid info (they're auctions with BIN option)
+                    if not auction and has_bid_info:
                         continue
 
                     listing_data = {
@@ -261,27 +267,26 @@ class EbayCardMonitor:
         return deals
 
     def find_auction_deals(self, page, query: str, max_price: float) -> list[dict]:
-        """Find auctions ending within 8h with 0-2 bids and price < 50% of max."""
+        """Find auctions ending within 8h with price < 90% of max (10% discount)."""
         listings = self.scrape_listings(page, query, auction=True)
         deals = []
 
-        target_price = max_price * 0.5  # 50% of BIN max price
+        target_price = max_price * 0.9  # 90% of BIN max price (10% discount)
 
         for listing in listings:
-            # Check criteria: price < 50% of max, 0-2 bids, ending within 8h
+            # Check criteria: price < 90% of max, ending within 8h
             if listing["price"] >= target_price:
-                continue
-            if listing.get("bids", 0) > 2:
                 continue
             if listing.get("time_left_hours") is None or listing["time_left_hours"] > 8:
                 continue
             if not self.title_matches_all_terms(listing["title"], query):
                 continue
-            if listing["item_id"] and listing["item_id"] not in self.seen_listings:
-                deals.append(listing)
-                self.seen_listings.add(listing["item_id"])
-            elif not listing["item_id"]:
-                deals.append(listing)
+
+            # Mark as DEAL if 0-2 bids and price < 50% of max
+            listing["is_deal"] = listing.get("bids", 0) <= 2 and listing["price"] < (max_price * 0.5)
+
+            # Always show auctions (don't mark as seen) so user can track countdown
+            deals.append(listing)
 
         return deals
 
@@ -301,7 +306,7 @@ class EbayCardMonitor:
 
         body = f"Deals found for: {query}\n"
         body += f"Your max BIN price: ${max_price:.2f}\n"
-        body += f"Auction target: under ${max_price * 0.5:.2f} (50%), ending <8h\n\n"
+        body += f"Auction target: under ${max_price * 0.9:.2f} (10% off), ending <8h\n\n"
         body += f"🔄 Clear this search: {clear_link}\n"
         body += f"🗑️ Clear all history: http://localhost:5050/clear-all\n\n"
         body += "=" * 50 + "\n\n"
@@ -319,7 +324,8 @@ class EbayCardMonitor:
         if auctions:
             body += f"🔨 AUCTIONS ({len(auctions)})\n\n"
             for auction in auctions:
-                body += f"{auction['title']}\n"
+                deal_tag = "🔥 DEAL! " if auction.get("is_deal") else ""
+                body += f"{deal_tag}{auction['title']}\n"
                 body += f"   Current: ${auction['price']:.2f}"
                 if auction['shipping'] > 0:
                     body += f" + ${auction['shipping']:.2f} shipping"
@@ -365,7 +371,7 @@ class EbayCardMonitor:
             for query, max_price in watchlist.items():
                 print(f"Searching: {query}")
                 print(f"   Max BIN price: ${max_price:.2f}")
-                print(f"   Auction target: <${max_price * 0.5:.2f} (50%)")
+                print(f"   Auction target: <${max_price * 0.9:.2f} (10% off)")
 
                 # Create fresh context and page for each search
                 context = browser.new_context(
@@ -392,7 +398,8 @@ class EbayCardMonitor:
                     for auction in auctions:
                         time_str = f"{auction['time_left_hours']:.1f}h" if auction.get('time_left_hours') else "?"
                         shipping_str = f" + ${auction['shipping']:.2f} ship" if auction['shipping'] > 0 else ""
-                        print(f"      ${auction['price']:.2f}{shipping_str} ({auction.get('bids', 0)} bids, {time_str} left) - {auction['title'][:40]}...")
+                        deal_str = "🔥DEAL " if auction.get('is_deal') else ""
+                        print(f"      {deal_str}${auction['price']:.2f}{shipping_str} ({auction.get('bids', 0)} bids, {time_str} left) - {auction['title'][:40]}...")
                     all_auctions.extend(auctions)
 
                 if deals or auctions:
