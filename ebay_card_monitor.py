@@ -165,10 +165,26 @@ class EbayCardMonitor:
         return listings
 
     def title_matches_all_terms(self, title: str, query: str) -> bool:
-        """Check if the title contains all search terms from the query."""
+        """Check if the title contains all search terms from the query.
+
+        Supports exclusions with minus prefix: "dylan harper -ice"
+        will match titles with "dylan" and "harper" but NOT "ice"
+        """
         title_lower = title.lower()
         terms = query.lower().split()
-        return all(term in title_lower for term in terms)
+
+        for term in terms:
+            if term.startswith("-"):
+                # Exclusion term - must NOT be in title
+                exclude = term[1:]
+                if exclude in title_lower:
+                    return False
+            else:
+                # Required term - must be in title
+                if term not in title_lower:
+                    return False
+
+        return True
 
     def find_deals(self, page, query: str, max_price: float) -> list[dict]:
         listings = self.scrape_listings(page, query)
