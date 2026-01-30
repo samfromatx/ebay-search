@@ -168,10 +168,11 @@ class EbayCardMonitor:
                         if match:
                             item_id = match.group(1)
 
-                    # Get shipping and auction info from attribute rows
+                    # Get shipping, location, and auction info from attribute rows
                     shipping_cost = 0.0
                     bids = 0
                     time_left_hours = None
+                    location = ""
                     attr_rows = item.query_selector_all(".s-card__attribute-row")
                     for row in attr_rows:
                         row_text = row.inner_text().strip().lower()
@@ -187,6 +188,15 @@ class EbayCardMonitor:
                             # Time is often in the same row as bids: "0 bids · Time left 23h 40m left"
                             if "left" in row_text:
                                 time_left_hours = self.parse_time_remaining(row_text)
+                        if "located in" in row_text:
+                            location = row_text
+
+                    # Skip listings not from United States
+                    if "united states" not in location:
+                        continue
+                    # Skip China specifically
+                    if "china" in location:
+                        continue
 
                     listing_data = {
                         "item_id": item_id,
