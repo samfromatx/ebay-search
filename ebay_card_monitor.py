@@ -251,19 +251,19 @@ class EbayCardMonitor:
         return deals
 
     def find_auction_deals(self, page, query: str, max_price: float) -> list[dict]:
-        """Find auctions ending within 24h with 0-2 bids and price < 50% of max."""
+        """Find auctions ending within 8h with 0-2 bids and price < 50% of max."""
         listings = self.scrape_listings(page, query, auction=True)
         deals = []
 
         target_price = max_price * 0.5  # 50% of BIN max price
 
         for listing in listings:
-            # Check criteria: price < 50% of max, 0-2 bids, ending within 24h
+            # Check criteria: price < 50% of max, 0-2 bids, ending within 8h
             if listing["price"] >= target_price:
                 continue
             if listing.get("bids", 0) > 2:
                 continue
-            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 24:
+            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 8:
                 continue
             if not self.title_matches_all_terms(listing["title"], query):
                 continue
@@ -291,7 +291,7 @@ class EbayCardMonitor:
 
         body = f"Deals found for: {query}\n"
         body += f"Your max BIN price: ${max_price:.2f}\n"
-        body += f"Auction target: under ${max_price * 0.5:.2f} (50%)\n\n"
+        body += f"Auction target: under ${max_price * 0.5:.2f} (50%), ending <8h\n\n"
         body += f"🔄 Clear this search: {clear_link}\n"
         body += f"🗑️ Clear all history: http://localhost:5050/clear-all\n\n"
         body += "=" * 50 + "\n\n"
@@ -311,6 +311,8 @@ class EbayCardMonitor:
             for auction in auctions:
                 body += f"{auction['title']}\n"
                 body += f"   Current: ${auction['price']:.2f}"
+                if auction['shipping'] > 0:
+                    body += f" + ${auction['shipping']:.2f} shipping"
                 body += f" ({auction.get('bids', 0)} bids)"
                 if auction.get('time_left_hours'):
                     hours = auction['time_left_hours']
@@ -379,7 +381,8 @@ class EbayCardMonitor:
                     print(f"   🔨 Found {len(auctions)} auction(s)!")
                     for auction in auctions:
                         time_str = f"{auction['time_left_hours']:.1f}h" if auction.get('time_left_hours') else "?"
-                        print(f"      ${auction['price']:.2f} ({auction.get('bids', 0)} bids, {time_str} left) - {auction['title'][:45]}...")
+                        shipping_str = f" + ${auction['shipping']:.2f} ship" if auction['shipping'] > 0 else ""
+                        print(f"      ${auction['price']:.2f}{shipping_str} ({auction.get('bids', 0)} bids, {time_str} left) - {auction['title'][:40]}...")
                     all_auctions.extend(auctions)
 
                 if deals or auctions:
