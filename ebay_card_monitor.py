@@ -397,11 +397,44 @@ class EbayCardMonitor:
 
         self._save_seen_listings()
 
+        # Send summary email (temporary for testing)
+        self.send_scan_summary(all_deals, all_auctions, watchlist)
+
         print(f"\n{'='*60}")
         print(f"Scan Complete - {len(all_deals)} BIN deal(s), {len(all_auctions)} auction(s)")
         print(f"{'='*60}\n")
 
         return all_deals + all_auctions
+
+    def send_scan_summary(self, deals: list, auctions: list, watchlist: dict):
+        """Send a summary email every scan (temporary for testing)."""
+        if not EMAIL_CONFIG["enabled"]:
+            return
+
+        subject = f"eBay Scan Complete: {len(deals)} deals, {len(auctions)} auctions"
+
+        body = f"Scan completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        body += f"Searches: {len(watchlist)}\n"
+        body += f"BIN deals found: {len(deals)}\n"
+        body += f"Auctions found: {len(auctions)}\n\n"
+        body += "Watchlist:\n"
+        for query, price in watchlist.items():
+            body += f"  - {query}: ${price:.2f}\n"
+
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_CONFIG["sender_email"]
+        msg["To"] = EMAIL_CONFIG["recipient_email"]
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        try:
+            with smtplib.SMTP(EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]) as server:
+                server.starttls()
+                server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
+                server.send_message(msg)
+            print("  📧 Scan summary email sent!")
+        except Exception as e:
+            print(f"  ⚠️  Failed to send summary email: {e}")
 
 
 def main():
