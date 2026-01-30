@@ -29,13 +29,13 @@ except ImportError:
 
 # ============== CONFIGURATION ==============
 
-WATCHLIST = {
-    "Amen Thompson 150 silver PSA 9": 31.00,
-    "tre johnson iii d-6 refractor": 5.00,
-    "dylan harper d-2 refractor": 7.00,
-    "Stephon Castle 234 silver PSA 9": 49.00,
-    # Add more cards here...
-}
+WATCHLIST_FILE = Path("watchlist.json")
+
+def load_watchlist():
+    if WATCHLIST_FILE.exists():
+        with open(WATCHLIST_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
 EMAIL_CONFIG = {
     "enabled": True,
@@ -232,7 +232,8 @@ class EbayCardMonitor:
             browser = p.chromium.launch(headless=True)
             print("Browser ready.\n")
 
-            for query, max_price in WATCHLIST.items():
+            watchlist = load_watchlist()
+            for query, max_price in watchlist.items():
                 print(f"Searching: {query}")
                 print(f"   Max price: ${max_price:.2f}")
 
