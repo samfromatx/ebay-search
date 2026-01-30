@@ -11,8 +11,10 @@
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/samwhite/Documents/ebay-search</string>
-    <key>StartInterval</key>
-    <integer>3600</integer>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Minute</key><integer>0</integer></dict>
+    </array>
     <key>StandardOutPath</key>
     <string>/Users/samwhite/Documents/ebay-search/monitor.log</string>
     <key>StandardErrorPath</key>
