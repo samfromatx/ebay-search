@@ -338,6 +338,11 @@ class EbayCardMonitor:
                         body += f" - {hours:.1f}h left"
                 body += f"\n   Link: {auction['link']}\n\n"
 
+        # Queue email during quiet hours (12am-6am)
+        if self._is_quiet_hours():
+            self._queue_email(subject, body)
+            return
+
         msg = MIMEMultipart()
         msg["From"] = EMAIL_CONFIG["sender_email"]
         msg["To"] = EMAIL_CONFIG["recipient_email"]
@@ -417,8 +422,8 @@ class EbayCardMonitor:
 
         self._save_seen_listings()
 
-        # Send summary email (temporary for testing)
-        self.send_scan_summary(all_deals, all_auctions, watchlist)
+        # Send any queued emails from quiet hours
+        self._send_queued_emails()
 
         print(f"\n{'='*60}")
         print(f"Scan Complete - {len(all_deals)} BIN deal(s), {len(all_auctions)} auction(s)")
@@ -426,35 +431,65 @@ class EbayCardMonitor:
 
         return all_deals + all_auctions
 
-    def send_scan_summary(self, deals: list, auctions: list, watchlist: dict):
-        """Send a summary email every scan (temporary for testing)."""
-        if not EMAIL_CONFIG["enabled"]:
+    def _is_quiet_hours(self) -> bool:
+        """Check if current time is between 12am and 6am."""
+        current_hour = datetime.now().hour
+        return 0 <= current_hour < 6
+
+    def _queue_email(self, subject: str, body: str):
+        """Queue an email to be sent after quiet hours."""
+        queue_file = Path("email_queue.json")
+        queue = []
+        if queue_file.exists():
+            with open(queue_file, "r") as f:
+                queue = json.load(f)
+
+        queue.append({
+            "subject": subject,
+            "body": body,
+            "queued_at": datetime.now().isoformat()
+        })
+
+        with open(queue_file, "w") as f:
+            json.dump(queue, f, indent=2)
+        print("  📬 Email queued (quiet hours)")
+
+    def _send_queued_emails(self):
+        """Send any emails that were queued during quiet hours."""
+        if self._is_quiet_hours():
             return
 
-        subject = f"eBay Scan Complete: {len(deals)} deals, {len(auctions)} auctions"
+        queue_file = Path("email_queue.json")
+        if not queue_file.exists():
+            return
 
-        body = f"Scan completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        body += f"Searches: {len(watchlist)}\n"
-        body += f"BIN deals found: {len(deals)}\n"
-        body += f"Auctions found: {len(auctions)}\n\n"
-        body += "Watchlist:\n"
-        for query, price in watchlist.items():
-            body += f"  - {query}: ${price:.2f}\n"
+        with open(queue_file, "r") as f:
+            queue = json.load(f)
 
-        msg = MIMEMultipart()
-        msg["From"] = EMAIL_CONFIG["sender_email"]
-        msg["To"] = EMAIL_CONFIG["recipient_email"]
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
+        if not queue:
+            return
 
-        try:
-            with smtplib.SMTP(EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]) as server:
-                server.starttls()
-                server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
-                server.send_message(msg)
-            print("  📧 Scan summary email sent!")
-        except Exception as e:
-            print(f"  ⚠️  Failed to send summary email: {e}")
+        print(f"📬 Sending {len(queue)} queued email(s)...")
+
+        for email in queue:
+            msg = MIMEMultipart()
+            msg["From"] = EMAIL_CONFIG["sender_email"]
+            msg["To"] = EMAIL_CONFIG["recipient_email"]
+            msg["Subject"] = email["subject"]
+            msg.attach(MIMEText(email["body"], "plain"))
+
+            try:
+                with smtplib.SMTP(EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"]) as server:
+                    server.starttls()
+                    server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
+                    server.send_message(msg)
+                print(f"  📧 Sent: {email['subject']}")
+            except Exception as e:
+                print(f"  ⚠️  Failed to send queued email: {e}")
+
+        # Clear the queue
+        queue_file.unlink()
+        print("📬 Queue cleared")
 
 
 def main():
