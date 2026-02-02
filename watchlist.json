@@ -1,6 +1,58 @@
 {
-  "Amen Thompson 150 silver PSA 9": 38.00,
-  "tre johnson iii d-6 refractor": 7.00,
-  "dylan harper d-2 refractor": 10.00,
-  "Stephon Castle 234 silver PSA 9": 49.00
+  "Amen Thompson 150 silver PSA 9 -ice": 30.00,
+  "amen thompson 150 psa 10": 40.00,
+  "Stephon Castle 234 silver PSA 9": 49.00,
+  "Kobe Bryant 45 Swirlorama": 42.00,
+  "Shai Gilgeous-Alexander 141 image variation": 25.00,
+  "Victor Wembanyama #220 Green Laser PSA 9": 35.00,
+  "Victor Wembanyama Optic #225 holo": 85.00,
+  "Victor Wembanyama 121 silver -blue": 32.00,
+  "Victor Wembanyama courtside 288": 25.00,
+  "Victor Wembanyama Prizm #136 PSA 10": 135.00,
+  "Victor Wembanyama Prizm #136 -silver -psa -chaser": 27.00,
+  "Victor Wembanyama Donruss Optic #225 Rated Rookie base -holo -chaser": 6.00,
+  "Victor Wembanyama Optic #225 Holo Prizm": 100.00,
+  "Victor Wembanyama Select #87 Concourse Blue Prizm PSA 9 -retail -silver": 25.00,
+  "Victor Wembanyama Select #87 Silver Prizm PSA 9 -blue -cracked": 40.00,
+  "Victor Wembanyama Select courtside 288": 20.00,
+  "Victor Wembanyama Prizm Draft Picks 2 Silver PSA 9": 22.00,
+  "Victor Wembanyama Mosaic #257 silver prizm PSA 9": 50.00,
+  "Victor Wembanyama GT-11 Teal Refractor /299": 20.00,
+  "Victor Wembanyama fast break": 50.00,
+  "2023-24 NBA Hoops #277 PSA 10": 40.00,
+  "Victor Wembanyama gold rookie -blue": 200.00,
+
+  "dylan harper refractor numbered -80bk-99 -Bowman -mcdonalds": {
+    "tiers": [
+      {"min": 199, "max": 999, "price": 15.00},
+      {"min": 75, "max": 198, "price": 25.00},
+      {"min": 1, "max": 74, "price": 40.00}
+    ]
+  },
+
+  "Basketball carter bryant numbered -80bk-99": {
+    "tiers": [
+      {"min": 150, "max": 999, "price": 10.00},
+      {"min": 75, "max": 149, "price": 20.00},
+      {"min": 1, "max": 74, "price": 40.00}
+    ]
+  },
+
+  "Basketball Topps Chrome Refractor RC Rookie numbered -80bk-99": {
+    "tiers": [
+      {"min": 199, "max": 999, "price": 40.00},
+      {"min": 75, "max": 198, "price": 50.00},
+      {"min": 25, "max": 74, "price": 90.00},
+      {"min": 1, "max": 24, "price": 150.00}
+    ]
+  },
+
+  "Victor Wembanyama Topps Chrome numbered -80bk-99": {
+    "tiers": [
+      {"min": 150, "max": 999, "price": 60.00},
+      {"min": 75, "max": 149, "price": 90.00},
+      {"min": 25, "max": 74, "price": 150.00},
+      {"min": 1, "max": 24, "price": 250.00}
+    ]
+  }
 }
