@@ -53,8 +53,9 @@ SEEN_LISTINGS_FILE = Path("seen_listings.json")
 
 class EbayCardMonitor:
     def __init__(self):
-        self.seen_listings = self._load_seen_listings()
+        self.seen_listings = self._load_seen_listings()  # dict: player_name -> set of item_ids
         self.seen_this_run = {}  # item_id -> list of queries that matched
+        self.current_player = None  # Set during run_scan for each player
 
     def extract_numbered_value(self, title: str) -> int | None:
         """Extract the numbered value from a card title like '/75' or '/299'.
@@ -80,15 +81,49 @@ class EbayCardMonitor:
                 return tier["price"]
         return None
 
-    def _load_seen_listings(self) -> set:
+    def _load_seen_listings(self) -> dict:
+        """Load seen listings as dict: player_name -> set of item_ids."""
         if SEEN_LISTINGS_FILE.exists():
             with open(SEEN_LISTINGS_FILE, "r") as f:
-                return set(json.load(f))
-        return set()
+                data = json.load(f)
+                # Handle old format (list) - migrate to new format
+                if isinstance(data, list):
+                    return {"_legacy": set(data)}
+                # New format: dict of player -> list of ids
+                return {player: set(ids) for player, ids in data.items()}
+        return {}
 
     def _save_seen_listings(self):
         with open(SEEN_LISTINGS_FILE, "w") as f:
-            json.dump(list(self.seen_listings), f)
+            # Convert sets to lists for JSON serialization
+            data = {player: list(ids) for player, ids in self.seen_listings.items()}
+            json.dump(data, f)
+
+    def _get_player_seen(self) -> set:
+        """Get seen item IDs for current player."""
+        if self.current_player is None:
+            return set()
+        return self.seen_listings.get(self.current_player, set())
+
+    def _mark_seen(self, item_id: str):
+        """Mark an item as seen for current player."""
+        if self.current_player is None or not item_id:
+            return
+        if self.current_player not in self.seen_listings:
+            self.seen_listings[self.current_player] = set()
+        self.seen_listings[self.current_player].add(item_id)
+
+    def clear_player_history(self, player_name: str) -> bool:
+        """Clear seen listings history for a specific player."""
+        if player_name in self.seen_listings:
+            count = len(self.seen_listings[player_name])
+            del self.seen_listings[player_name]
+            self._save_seen_listings()
+            print(f"Cleared {count} items from {player_name}'s history.")
+            return True
+        else:
+            print(f"No history found for {player_name}.")
+            return False
 
     def build_search_url(self, query: str, auction: bool = False) -> str:
         # Remove exclusion terms and OR groups from eBay search (we filter locally)
@@ -303,21 +338,17 @@ class EbayCardMonitor:
                 if not self.title_matches_all_terms(listing["title"], query):
                     continue
 
-                # Dedupe by item_id or link
+                # Dedupe by item_id or link within this search
                 dedupe_key = listing["item_id"] or listing.get("link", "")
                 if dedupe_key in seen_in_search:
                     continue
                 seen_in_search.add(dedupe_key)
 
-                # Cross-search deduplication - skip if already shown in another search
-                if dedupe_key in self.seen_this_run:
-                    self.seen_this_run[dedupe_key].append(query)
-                    continue
-                self.seen_this_run[dedupe_key] = [query]
-
-                if listing["item_id"] and listing["item_id"] not in self.seen_listings:
+                # Check persistent seen_listings (across runs) for BIN deals
+                player_seen = self._get_player_seen()
+                if listing["item_id"] and listing["item_id"] not in player_seen:
                     deals.append(listing)
-                    self.seen_listings.add(listing["item_id"])
+                    self._mark_seen(listing["item_id"])
                 elif not listing["item_id"]:
                     deals.append(listing)
 
@@ -343,57 +374,55 @@ class EbayCardMonitor:
             if tier_price is None:
                 continue  # Number doesn't fall in any tier
 
-            # Dedupe by item_id or link
+            # Dedupe by item_id or link within this search
             dedupe_key = listing["item_id"] or listing.get("link", "")
             if dedupe_key in seen_in_search:
                 continue
             seen_in_search.add(dedupe_key)
 
-            # Cross-search deduplication - skip if already shown in another search
-            if dedupe_key in self.seen_this_run:
-                self.seen_this_run[dedupe_key].append(query)
-                continue
-            self.seen_this_run[dedupe_key] = [query]
-
             if listing["price"] <= tier_price:
                 listing["numbered"] = numbered
                 listing["tier_price"] = tier_price
-                if listing["item_id"] and listing["item_id"] not in self.seen_listings:
+                # Check persistent seen_listings (across runs) for BIN deals
+                player_seen = self._get_player_seen()
+                if listing["item_id"] and listing["item_id"] not in player_seen:
                     deals.append(listing)
-                    self.seen_listings.add(listing["item_id"])
+                    self._mark_seen(listing["item_id"])
                 elif not listing["item_id"]:
                     deals.append(listing)
 
         return deals
 
     def find_auction_deals(self, page, query: str, max_price: float) -> list[dict]:
-        """Find auctions ending within 8h with price < 90% of max (10% discount)."""
+        """Find auctions ending within 12h with price < max."""
         listings = self.scrape_listings(page, query, auction=True)
         deals = []
         seen_in_search = set()  # Dedupe within this search
 
-        target_price = max_price * 0.9  # 90% of BIN max price (10% discount)
+        target_price = max_price  # Any auction under max price
+
+        # Debug counters
+        filtered_price = 0
+        filtered_time = 0
+        filtered_title = 0
 
         for listing in listings:
-            # Check criteria: price < 90% of max, ending within 8h
+            # Check criteria: price < max, ending within 12h
             if listing["price"] >= target_price:
+                filtered_price += 1
                 continue
-            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 8:
+            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 12:
+                filtered_time += 1
                 continue
             if not self.title_matches_all_terms(listing["title"], query):
+                filtered_title += 1
                 continue
 
-            # Dedupe by item_id or link
+            # Dedupe by item_id or link within this search
             dedupe_key = listing["item_id"] or listing.get("link", "")
             if dedupe_key in seen_in_search:
                 continue
             seen_in_search.add(dedupe_key)
-
-            # Cross-search deduplication - skip if already shown in another search
-            if dedupe_key in self.seen_this_run:
-                self.seen_this_run[dedupe_key].append(query)
-                continue
-            self.seen_this_run[dedupe_key] = [query]
 
             # Mark as DEAL if 0-2 bids and price < 50% of max
             listing["is_deal"] = listing.get("bids", 0) <= 2 and listing["price"] < (max_price * 0.5)
@@ -401,16 +430,19 @@ class EbayCardMonitor:
             # Always show auctions (don't mark as seen persistently) so user can track countdown
             deals.append(listing)
 
+        if len(listings) > 0 and len(deals) == 0:
+            print(f"      [Auction debug] Filtered: {filtered_price} price>${target_price:.0f}, {filtered_time} time>12h, {filtered_title} title mismatch")
+
         return deals
 
     def find_tiered_auction_deals(self, page, query: str, tiers: list[dict]) -> list[dict]:
-        """Find auction deals for numbered cards using price tiers."""
+        """Find auction deals for numbered cards using price tiers (ending within 12h)."""
         listings = self.scrape_listings(page, query, auction=True)
         deals = []
         seen_in_search = set()  # Dedupe within this search
 
         for listing in listings:
-            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 8:
+            if listing.get("time_left_hours") is None or listing["time_left_hours"] > 12:
                 continue
             if not self.title_matches_all_terms(listing["title"], query):
                 continue
@@ -425,19 +457,13 @@ class EbayCardMonitor:
             if tier_price is None:
                 continue
 
-            # Dedupe by item_id or link
+            # Dedupe by item_id or link within this search
             dedupe_key = listing["item_id"] or listing.get("link", "")
             if dedupe_key in seen_in_search:
                 continue
             seen_in_search.add(dedupe_key)
 
-            # Cross-search deduplication - skip if already shown in another search
-            if dedupe_key in self.seen_this_run:
-                self.seen_this_run[dedupe_key].append(query)
-                continue
-            self.seen_this_run[dedupe_key] = [query]
-
-            target_price = tier_price * 0.9  # 90% of tier price
+            target_price = tier_price  # Any auction under tier price
 
             if listing["price"] < target_price:
                 listing["numbered"] = numbered
@@ -448,68 +474,91 @@ class EbayCardMonitor:
 
         return deals
 
-    def send_email_alert(self, deals: list[dict], auctions: list[dict], query: str, price_config):
+    def send_player_email(self, player: str, numbered_deals: list, numbered_auctions: list,
+                          other_deals: list, other_auctions: list):
+        """Send one email per player with all their deals organized by category."""
         if not EMAIL_CONFIG["enabled"]:
             return
 
-        total_items = len(deals) + len(auctions)
-        if total_items == 0:
+        total = len(numbered_deals) + len(numbered_auctions) + len(other_deals) + len(other_auctions)
+        if total == 0:
             return
 
-        # URL encode the query for the clear link
-        from urllib.parse import quote
-        clear_link = f"http://localhost:5050/clear?query={quote(query)}"
+        subject = f"🏀 {player}: {total} deal(s) found"
 
-        subject = f"eBay Deal Alert: {total_items} item(s) for {query}"
+        body = f"{'='*50}\n"
+        body += f"🏀 {player}\n"
+        body += f"{'='*50}\n\n"
 
-        body = f"Deals found for: {query}\n"
+        # Numbered cards section (if any)
+        if numbered_deals or numbered_auctions:
+            body += "📊 NUMBERED CARDS\n"
+            body += "-" * 30 + "\n\n"
 
-        # Handle tiered vs simple pricing
-        is_tiered = isinstance(price_config, dict) and "tiers" in price_config
-        if is_tiered:
-            tiers = price_config["tiers"]
-            body += "Tiered pricing:\n"
-            for tier in tiers:
-                body += f"   /{tier['min']}-/{tier['max']}: ${tier['price']:.2f}\n"
-            body += "\n"
-        else:
-            max_price = price_config
-            body += f"Your max BIN price: ${max_price:.2f}\n"
-            body += f"Auction target: under ${max_price * 0.9:.2f} (10% off), ending <8h\n\n"
-        body += f"🔄 Clear this search: {clear_link}\n"
-        body += f"🗑️ Clear all history: http://localhost:5050/clear-all\n\n"
-        body += "=" * 50 + "\n\n"
+            if numbered_deals:
+                body += f"📦 BUY IT NOW ({len(numbered_deals)})\n\n"
+                for deal in numbered_deals:
+                    body += f"[/{deal.get('numbered', '?')}] {deal['title']}\n"
+                    body += f"   ${deal['price']:.2f}"
+                    if deal['shipping'] > 0:
+                        body += f" + ${deal['shipping']:.2f} ship"
+                    body += f" (max ${deal.get('tier_price', 0):.2f})\n"
+                    body += f"   {deal['link']}\n\n"
 
-        if deals:
-            body += f"📦 BUY IT NOW ({len(deals)})\n\n"
-            for deal in deals:
-                body += f"{deal['title']}\n"
-                body += f"   Price: ${deal['price']:.2f}"
-                if deal['shipping'] > 0:
-                    body += f" + ${deal['shipping']:.2f} shipping"
-                body += f"\n   Total: ${deal['total_price']:.2f}"
-                if deal.get('numbered'):
-                    body += f" (/{deal['numbered']} - max ${deal['tier_price']:.2f})"
-                body += f"\n   Link: {deal['link']}\n\n"
+            if numbered_auctions:
+                body += f"🔨 AUCTIONS ({len(numbered_auctions)})\n\n"
+                for auction in numbered_auctions:
+                    deal_tag = "🔥 DEAL! " if auction.get("is_deal") else ""
+                    body += f"{deal_tag}[/{auction.get('numbered', '?')}] {auction['title']}\n"
+                    body += f"   ${auction['price']:.2f}"
+                    if auction['shipping'] > 0:
+                        body += f" + ${auction['shipping']:.2f} ship"
+                    body += f" ({auction.get('bids', 0)} bids"
+                    if auction.get('time_left_hours'):
+                        hours = auction['time_left_hours']
+                        if hours < 1:
+                            body += f", {int(hours * 60)}m left"
+                        else:
+                            body += f", {hours:.1f}h left"
+                    body += f")\n   {auction['link']}\n\n"
 
-        if auctions:
-            body += f"🔨 AUCTIONS ({len(auctions)})\n\n"
-            for auction in auctions:
-                deal_tag = "🔥 DEAL! " if auction.get("is_deal") else ""
-                body += f"{deal_tag}{auction['title']}\n"
-                body += f"   Current: ${auction['price']:.2f}"
-                if auction['shipping'] > 0:
-                    body += f" + ${auction['shipping']:.2f} shipping"
-                body += f" ({auction.get('bids', 0)} bids)"
-                if auction.get('time_left_hours'):
-                    hours = auction['time_left_hours']
-                    if hours < 1:
-                        body += f" - {int(hours * 60)}m left"
-                    else:
-                        body += f" - {hours:.1f}h left"
-                if auction.get('numbered'):
-                    body += f" [/{auction['numbered']} - max ${auction['tier_price']:.2f}]"
-                body += f"\n   Link: {auction['link']}\n\n"
+        # Other searches section (if any)
+        if other_deals or other_auctions:
+            body += "🔍 OTHER SEARCHES\n"
+            body += "-" * 30 + "\n\n"
+
+            if other_deals:
+                body += f"📦 BUY IT NOW ({len(other_deals)})\n\n"
+                for deal in other_deals:
+                    search_name = deal.get('search_query', '')[:30]
+                    body += f"[{search_name}] {deal['title']}\n"
+                    body += f"   ${deal['price']:.2f}"
+                    if deal['shipping'] > 0:
+                        body += f" + ${deal['shipping']:.2f} ship"
+                    body += f"\n   {deal['link']}\n\n"
+
+            if other_auctions:
+                body += f"🔨 AUCTIONS ({len(other_auctions)})\n\n"
+                for auction in other_auctions:
+                    deal_tag = "🔥 DEAL! " if auction.get("is_deal") else ""
+                    search_name = auction.get('search_query', '')[:30]
+                    body += f"{deal_tag}[{search_name}] {auction['title']}\n"
+                    body += f"   ${auction['price']:.2f}"
+                    if auction['shipping'] > 0:
+                        body += f" + ${auction['shipping']:.2f} ship"
+                    body += f" ({auction.get('bids', 0)} bids"
+                    if auction.get('time_left_hours'):
+                        hours = auction['time_left_hours']
+                        if hours < 1:
+                            body += f", {int(hours * 60)}m left"
+                        else:
+                            body += f", {hours:.1f}h left"
+                    body += f")\n   {auction['link']}\n\n"
+
+        body += f"\n{'='*50}\n"
+        body += f"🗑️ Clear {player} history:\n"
+        body += f"   python ebay_card_monitor.py --clear \"{player}\"\n"
+        body += f"🗑️ Clear all history: http://localhost:5050/clear-all\n"
 
         # Queue email during quiet hours (12am-6am)
         if self._is_quiet_hours():
@@ -527,7 +576,7 @@ class EbayCardMonitor:
                 server.starttls()
                 server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["sender_password"])
                 server.send_message(msg)
-            print("  📧 Email alert sent!")
+            print(f"  📧 Email sent for {player}!")
         except Exception as e:
             print(f"  ⚠️  Failed to send email: {e}")
 
@@ -540,8 +589,8 @@ class EbayCardMonitor:
         # Reset cross-search deduplication for this run
         self.seen_this_run = {}
 
-        all_deals = []
-        all_auctions = []
+        total_deals = 0
+        total_auctions = 0
 
         with sync_playwright() as p:
             print("Starting browser...")
@@ -549,67 +598,113 @@ class EbayCardMonitor:
             print("Browser ready.\n")
 
             watchlist = load_watchlist()
-            for query, price_config in watchlist.items():
-                # Check if this is a tiered search or simple search
-                is_tiered = isinstance(price_config, dict) and "tiers" in price_config
 
-                print(f"Searching: {query}")
+            for player, config in watchlist.items():
+                print(f"\n{'='*50}")
+                print(f"🏀 {player}")
+                print(f"{'='*50}")
 
-                if is_tiered:
-                    tiers = price_config["tiers"]
-                    min_price = min(t["price"] for t in tiers)
-                    max_price_display = max(t["price"] for t in tiers)
-                    print(f"   Tiered pricing: ${min_price:.2f} - ${max_price_display:.2f}")
-                    for tier in tiers:
-                        print(f"      /{tier['min']}-/{tier['max']}: ${tier['price']:.2f}")
-                else:
-                    max_price = price_config
-                    print(f"   Max BIN price: ${max_price:.2f}")
-                    print(f"   Auction target: <${max_price * 0.9:.2f} (10% off)")
+                # Set current player for seen_listings tracking
+                self.current_player = player
 
-                # Create fresh context and page for each search
+                # Reset per-player deduplication
+                player_seen = set()
+
+                # Collect all deals for this player
+                numbered_deals = []
+                numbered_auctions = []
+                other_deals = []
+                other_auctions = []
+
+                # Create browser context for this player
                 context = browser.new_context(
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     viewport={"width": 1920, "height": 1080}
                 )
                 page = context.new_page()
 
-                # Search BIN deals
-                if is_tiered:
+                # Run numbered search first (if exists)
+                if "numbered" in config:
+                    numbered_config = config["numbered"]
+                    query = numbered_config["query"]
+                    tiers = numbered_config["tiers"]
+
+                    print(f"\n   📊 Numbered search: {query}")
+                    min_price = min(t["price"] for t in tiers)
+                    max_price = max(t["price"] for t in tiers)
+                    print(f"      Tiers: ${min_price:.2f} - ${max_price:.2f}")
+
+                    # BIN deals
                     deals = self.find_tiered_deals(page, query, tiers)
-                    auctions = self.find_tiered_auction_deals(page, query, tiers)
-                else:
-                    deals = self.find_deals(page, query, max_price)
-                    auctions = self.find_auction_deals(page, query, max_price)
-
-                if deals:
-                    print(f"   ✅ Found {len(deals)} BIN deal(s)!")
                     for deal in deals:
-                        shipping_str = f" + ${deal['shipping']:.2f} ship" if deal['shipping'] > 0 else " (free ship)"
-                        numbered_str = f" [/{deal['numbered']}]" if deal.get('numbered') else ""
-                        print(f"      ${deal['price']:.2f}{shipping_str}{numbered_str} - {deal['title'][:50]}...")
-                    all_deals.extend(deals)
+                        dedupe_key = deal["item_id"] or deal.get("link", "")
+                        if dedupe_key not in player_seen:
+                            player_seen.add(dedupe_key)
+                            numbered_deals.append(deal)
 
-                if auctions:
-                    print(f"   🔨 Found {len(auctions)} auction(s)!")
+                    # Auctions
+                    auctions = self.find_tiered_auction_deals(page, query, tiers)
                     for auction in auctions:
-                        time_str = f"{auction['time_left_hours']:.1f}h" if auction.get('time_left_hours') else "?"
-                        shipping_str = f" + ${auction['shipping']:.2f} ship" if auction['shipping'] > 0 else ""
-                        deal_str = "🔥DEAL " if auction.get('is_deal') else ""
-                        numbered_str = f" [/{auction['numbered']}]" if auction.get('numbered') else ""
-                        print(f"      {deal_str}${auction['price']:.2f}{shipping_str} ({auction.get('bids', 0)} bids, {time_str} left){numbered_str} - {auction['title'][:40]}...")
-                    all_auctions.extend(auctions)
+                        dedupe_key = auction["item_id"] or auction.get("link", "")
+                        if dedupe_key not in player_seen:
+                            player_seen.add(dedupe_key)
+                            numbered_auctions.append(auction)
 
-                if deals or auctions:
-                    self.send_email_alert(deals, auctions, query, price_config)
-                else:
-                    print(f"   ❌ No deals found\n")
+                    if numbered_deals or numbered_auctions:
+                        print(f"      ✅ {len(numbered_deals)} BIN, {len(numbered_auctions)} auctions")
+                    else:
+                        print(f"      ❌ No numbered deals")
 
-                if not deals and not auctions:
-                    print()
+                    time.sleep(random.uniform(2, 4))
+
+                # Run other searches
+                searches = config.get("searches", [])
+                for search in searches:
+                    query = search["query"]
+                    max_price = search["price"]
+
+                    print(f"\n   🔍 Search: {query}")
+                    print(f"      Max: ${max_price:.2f}")
+
+                    # BIN deals
+                    deals = self.find_deals(page, query, max_price)
+                    for deal in deals:
+                        dedupe_key = deal["item_id"] or deal.get("link", "")
+                        if dedupe_key not in player_seen:
+                            player_seen.add(dedupe_key)
+                            deal["search_query"] = query
+                            other_deals.append(deal)
+
+                    # Auctions
+                    auctions = self.find_auction_deals(page, query, max_price)
+                    for auction in auctions:
+                        dedupe_key = auction["item_id"] or auction.get("link", "")
+                        if dedupe_key not in player_seen:
+                            player_seen.add(dedupe_key)
+                            auction["search_query"] = query
+                            other_auctions.append(auction)
+
+                    if deals or auctions:
+                        new_deals = len([d for d in deals if d.get("search_query")])
+                        new_auctions = len([a for a in auctions if a.get("search_query")])
+                        print(f"      ✅ {new_deals} BIN, {new_auctions} auctions (after dedupe)")
+                    else:
+                        print(f"      ❌ No deals")
+
+                    time.sleep(random.uniform(2, 4))
 
                 context.close()
-                time.sleep(random.uniform(3, 5))
+
+                # Summary for player
+                player_total = len(numbered_deals) + len(numbered_auctions) + len(other_deals) + len(other_auctions)
+                total_deals += len(numbered_deals) + len(other_deals)
+                total_auctions += len(numbered_auctions) + len(other_auctions)
+
+                if player_total > 0:
+                    print(f"\n   📧 {player}: {player_total} total deals")
+                    self.send_player_email(player, numbered_deals, numbered_auctions, other_deals, other_auctions)
+                else:
+                    print(f"\n   ❌ No deals for {player}")
 
             browser.close()
 
@@ -619,10 +714,10 @@ class EbayCardMonitor:
         self._send_queued_emails()
 
         print(f"\n{'='*60}")
-        print(f"Scan Complete - {len(all_deals)} BIN deal(s), {len(all_auctions)} auction(s)")
+        print(f"Scan Complete - {total_deals} BIN deal(s), {total_auctions} auction(s)")
         print(f"{'='*60}\n")
 
-        return all_deals + all_auctions
+        return total_deals + total_auctions
 
     def _is_quiet_hours(self) -> bool:
         """Check if current time is between 12am and 6am."""
@@ -686,14 +781,31 @@ class EbayCardMonitor:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="eBay Card Monitor")
+    parser.add_argument("--clear", metavar="PLAYER", help="Clear history for a specific player")
+    parser.add_argument("--clear-all", action="store_true", help="Clear all history")
+    args = parser.parse_args()
+
+    monitor = EbayCardMonitor()
+
+    # Handle clear commands
+    if args.clear:
+        monitor.clear_player_history(args.clear)
+        return
+    if args.clear_all:
+        monitor.seen_listings = {}
+        monitor._save_seen_listings()
+        print("Cleared all history.")
+        return
+
     if not PLAYWRIGHT_AVAILABLE:
         print("\n❌ Playwright not installed.")
         print("   Run:")
         print("     pip install playwright")
         print("     playwright install chromium\n")
         return
-    
-    monitor = EbayCardMonitor()
+
     monitor.run_scan()
 
 

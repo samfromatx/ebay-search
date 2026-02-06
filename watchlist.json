@@ -1,55 +1,171 @@
 {
-  "Amen Thompson 150 silver PSA 9 -ice": 30.00,
-  "Stephon Castle 234 silver PSA 9": 49.00,
-  "Stephon Castle rookie lot": 15.00,
-  "Stephon Castle Premier": 5.00,
-  "Kobe Bryant 45 Swirlorama": 42.00,
-  "Shai Gilgeous-Alexander 141 image variation": 25.00,
-  "Alexandre Sarr Rookie lot": 15.00,
-  "Victor Wembanyama #220 Green Laser PSA 9": 35.00,
-  "Victor Wembanyama Optic #225 holo": 85.00,
-  "Victor Wembanyama 121 silver -blue": 32.00,
-  "Victor Wembanyama courtside 288": 25.00,
-  "Victor Wembanyama Prizm #136 PSA 10": 135.00,
-  "Victor Wembanyama Prizm #136 -silver -psa -chaser": 27.00,
-  "Victor Wembanyama Optic #225 Holo Prizm": 100.00,
-  "Victor Wembanyama Select courtside 288": 20.00,
-  "Victor Wembanyama Prizm Draft Picks 2 Silver PSA 9": 22.00,
-  "Victor Wembanyama Mosaic #257 silver prizm PSA 9": 50.00,
-  "Victor Wembanyama fast break": 50.00,
-  "Victor Wembanyama gold rookie -blue": 200.00,
-
-  "dylan harper refractor numbered -80bk-99 -Bowman -mcdonalds": {
-    "tiers": [
-      {"min": 199, "max": 999, "price": 15.00},
-      {"min": 75, "max": 198, "price": 25.00},
-      {"min": 1, "max": 74, "price": 40.00}
+  "Victor Wembanyama": {
+    "numbered": {
+      "query": "victor wembanyama numbered",
+      "tiers": [
+        {"min": 75, "max": 199, "price": 50.00},
+        {"min": 25, "max": 74, "price": 100.00},
+        {"min": 1, "max": 24, "price": 200.00}
+      ]
+    },
+    "searches": [
+      {"query": "Victor Wembanyama Optic #225 holo", "price": 85.00},
+      {"query": "Victor Wembanyama courtside 288", "price": 25.00},
+      {"query": "Victor Wembanyama Prizm #136 PSA 10", "price": 135.00},
+      {"query": "Victor Wembanyama Prizm #136 -silver -psa -chaser", "price": 27.00},
+      {"query": "Victor Wembanyama Optic #225 Holo Prizm", "price": 100.00},
+      {"query": "Victor Wembanyama Select courtside 288", "price": 20.00},
+      {"query": "Victor Wembanyama Prizm Draft Picks 2 Silver PSA 9", "price": 22.00},
+      {"query": "Victor Wembanyama Mosaic #257 silver prizm PSA 9", "price": 50.00},
+      {"query": "Victor Wembanyama fast break", "price": 50.00},
+      {"query": "Victor Wembanyama gold rookie -blue", "price": 200.00}
     ]
   },
 
-  "Basketball carter bryant numbered -80bk-99": {
-    "tiers": [
-      {"min": 150, "max": 999, "price": 10.00},
-      {"min": 75, "max": 149, "price": 20.00},
-      {"min": 1, "max": 74, "price": 40.00}
+  "Stephon Castle": {
+    "numbered": {
+      "query": "stephon castle numbered",
+      "tiers": [
+        {"min": 75, "max": 99, "price": 20.00},
+        {"min": 25, "max": 74, "price": 50.00},
+        {"min": 1, "max": 24, "price": 100.00}
+      ]
+    },
+    "searches": [
+      {"query": "Stephon Castle 234 silver PSA 9", "price": 49.00},
+      {"query": "Stephon Castle rookie lot", "price": 15.00},
+      {"query": "Stephon Castle Premier", "price": 5.00}
     ]
   },
 
-  "stephon castle": {
-    "tiers": [
-      {"min": 199, "max": 999, "price": 15.00},
-      {"min": 75, "max": 198, "price": 20.00},
-      {"min": 25, "max": 74, "price": 50.00},
-      {"min": 1, "max": 24, "price": 100.00}
+  "Amen Thompson": {
+    "numbered": {
+      "query": "amen thompson numbered",
+      "tiers": [
+        {"min": 75, "max": 99, "price": 20.00},
+        {"min": 25, "max": 74, "price": 50.00},
+        {"min": 1, "max": 24, "price": 100.00}
+      ]
+    },
+    "searches": [
+      {"query": "Amen Thompson 150 silver PSA 9 -ice", "price": 30.00}
     ]
   },
 
-  "alexandre sarr": {
-    "tiers": [
-      {"min": 199, "max": 999, "price": 10.00},
-      {"min": 75, "max": 198, "price": 15.00},
-      {"min": 25, "max": 74, "price": 40.00},
-      {"min": 1, "max": 24, "price": 90.00}
+  "Alexandre Sarr": {
+    "numbered": {
+      "query": "alexandre sarr numbered",
+      "tiers": [
+        {"min": 75, "max": 198, "price": 15.00},
+        {"min": 25, "max": 74, "price": 40.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": [
+      {"query": "Alexandre Sarr Rookie lot", "price": 7.00}
     ]
+  },
+
+  "Dylan Harper": {
+    "numbered": {
+      "query": "dylan harper numbered -80bk-99 -Bowman -mcdonalds",
+      "tiers": [
+        {"min": 199, "max": 999, "price": 20.00},
+        {"min": 75, "max": 198, "price": 35.00},
+        {"min": 1, "max": 74, "price": 60.00}
+      ]
+    },
+    "searches": []
+  },
+
+  "Carter Bryant": {
+    "numbered": {
+      "query": "Basketball carter bryant numbered -80bk-99",
+      "tiers": [
+        {"min": 150, "max": 999, "price": 10.00},
+        {"min": 75, "max": 149, "price": 20.00},
+        {"min": 1, "max": 74, "price": 40.00}
+      ]
+    },
+    "searches": []
+  },
+
+  "Keyonte George": {
+    "numbered": {
+      "query": "keyonte george numbered",
+      "tiers": [
+        {"min": 75, "max": 198, "price": 15.00},
+        {"min": 25, "max": 74, "price": 40.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": [
+      {"query": "Keyonte George rookie lot", "price": 7.00},
+      {"query": "Keyonte George 127 prizm PSA 10", "price": 32.00}
+    ]
+  },
+
+  "Brandon Miller": {
+    "numbered": {
+      "query": "brandon miller numbered",
+      "tiers": [
+        {"min": 75, "max": 198, "price": 15.00},
+        {"min": 25, "max": 74, "price": 40.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": [
+      {"query": "Brandon Miller rookie lot", "price": 7.00},
+      {"query": "Brandon Miller 152 prizm PSA 9", "price": 27.00},
+      {"query": "Brandon Miller 286 PSA 10", "price": 25.00}
+    ]
+  },
+
+  "Matas Buzelis": {
+    "numbered": {
+      "query": "matas buzelis numbered",
+      "tiers": [
+        {"min": 75, "max": 198, "price": 7.00},
+        {"min": 25, "max": 74, "price": 40.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": []
+  },
+
+  "Lauri Markkanen": {
+    "numbered": {
+      "query": "lauri markkanen numbered",
+      "tiers": [
+        {"min": 75, "max": 150, "price": 5.00},
+        {"min": 25, "max": 74, "price": 15.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": []
+  },
+
+  "Kobe Bryant": {
+    "searches": [
+      {"query": "Kobe Bryant 45 Swirlorama", "price": 42.00}
+    ]
+  },
+
+  "Shai Gilgeous-Alexander": {
+    "searches": [
+      {"query": "Shai Gilgeous-Alexander PSA 9", "price": 25.00}
+    ]
+  },
+
+  "Obsidian Basketball": {
+    "numbered": {
+      "query": "obsidian basketball numbered",
+      "tiers": [
+        {"min": 75, "max": 150, "price": 15.00},
+        {"min": 25, "max": 74, "price": 40.00},
+        {"min": 1, "max": 24, "price": 90.00}
+      ]
+    },
+    "searches": []
   }
 }
