@@ -54,6 +54,7 @@ SEEN_LISTINGS_FILE = Path("seen_listings.json")
 class EbayCardMonitor:
     def __init__(self):
         self.seen_listings = self._load_seen_listings()
+        self.seen_this_run = {}  # item_id -> list of queries that matched
 
     def extract_numbered_value(self, title: str) -> int | None:
         """Extract the numbered value from a card title like '/75' or '/299'.
@@ -308,6 +309,12 @@ class EbayCardMonitor:
                     continue
                 seen_in_search.add(dedupe_key)
 
+                # Cross-search deduplication - skip if already shown in another search
+                if dedupe_key in self.seen_this_run:
+                    self.seen_this_run[dedupe_key].append(query)
+                    continue
+                self.seen_this_run[dedupe_key] = [query]
+
                 if listing["item_id"] and listing["item_id"] not in self.seen_listings:
                     deals.append(listing)
                     self.seen_listings.add(listing["item_id"])
@@ -341,6 +348,12 @@ class EbayCardMonitor:
             if dedupe_key in seen_in_search:
                 continue
             seen_in_search.add(dedupe_key)
+
+            # Cross-search deduplication - skip if already shown in another search
+            if dedupe_key in self.seen_this_run:
+                self.seen_this_run[dedupe_key].append(query)
+                continue
+            self.seen_this_run[dedupe_key] = [query]
 
             if listing["price"] <= tier_price:
                 listing["numbered"] = numbered
@@ -376,10 +389,16 @@ class EbayCardMonitor:
                 continue
             seen_in_search.add(dedupe_key)
 
+            # Cross-search deduplication - skip if already shown in another search
+            if dedupe_key in self.seen_this_run:
+                self.seen_this_run[dedupe_key].append(query)
+                continue
+            self.seen_this_run[dedupe_key] = [query]
+
             # Mark as DEAL if 0-2 bids and price < 50% of max
             listing["is_deal"] = listing.get("bids", 0) <= 2 and listing["price"] < (max_price * 0.5)
 
-            # Always show auctions (don't mark as seen) so user can track countdown
+            # Always show auctions (don't mark as seen persistently) so user can track countdown
             deals.append(listing)
 
         return deals
@@ -411,6 +430,12 @@ class EbayCardMonitor:
             if dedupe_key in seen_in_search:
                 continue
             seen_in_search.add(dedupe_key)
+
+            # Cross-search deduplication - skip if already shown in another search
+            if dedupe_key in self.seen_this_run:
+                self.seen_this_run[dedupe_key].append(query)
+                continue
+            self.seen_this_run[dedupe_key] = [query]
 
             target_price = tier_price * 0.9  # 90% of tier price
 
@@ -511,6 +536,9 @@ class EbayCardMonitor:
         print(f"eBay Card Monitor - Scan Started")
         print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*60}\n")
+
+        # Reset cross-search deduplication for this run
+        self.seen_this_run = {}
 
         all_deals = []
         all_auctions = []
