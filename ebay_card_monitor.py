@@ -47,6 +47,8 @@ EMAIL_CONFIG = {
 }
 
 SEEN_LISTINGS_FILE = Path("seen_listings.json")
+SOLD_PRICES_CACHE_FILE = Path("sold_prices_cache.json")
+SOLD_CACHE_DAYS = 7  # Refresh cache weekly
 
 # ============================================
 
@@ -124,6 +126,124 @@ class EbayCardMonitor:
         else:
             print(f"No history found for {player_name}.")
             return False
+
+    # ============== SOLD PRICES CACHE ==============
+
+    def _load_sold_cache(self) -> dict:
+        """Load sold prices cache: query -> {avg_price, num_sold, updated}."""
+        if SOLD_PRICES_CACHE_FILE.exists():
+            with open(SOLD_PRICES_CACHE_FILE, "r") as f:
+                return json.load(f)
+        return {}
+
+    def _save_sold_cache(self, cache: dict):
+        with open(SOLD_PRICES_CACHE_FILE, "w") as f:
+            json.dump(cache, f, indent=2)
+
+    def _get_cache_key(self, title: str) -> str:
+        """Generate cache key from listing title - extract key terms."""
+        # Normalize: lowercase, remove special chars, keep important terms
+        title = title.lower()
+        # Remove common noise words
+        noise = ['the', 'a', 'an', 'and', 'or', 'of', 'for', 'to', 'in', 'on', 'card', 'cards',
+                 'lot', 'rookie', 'rc', 'base', 'basketball', 'nba', '2023-24', '2024-25',
+                 '2023', '2024', 'panini', 'topps']
+        # Keep alphanumeric and /
+        words = re.findall(r'[a-z0-9/]+', title)
+        # Filter noise and short words
+        key_words = [w for w in words if w not in noise and len(w) > 1]
+        # Limit to first 8 meaningful words
+        return ' '.join(key_words[:8])
+
+    def _is_cache_valid(self, cache_entry: dict) -> bool:
+        """Check if cache entry is still valid (within SOLD_CACHE_DAYS)."""
+        if not cache_entry or 'updated' not in cache_entry:
+            return False
+        updated = datetime.fromisoformat(cache_entry['updated'])
+        age_days = (datetime.now() - updated).days
+        return age_days < SOLD_CACHE_DAYS
+
+    def build_sold_search_url(self, query: str) -> str:
+        """Build eBay URL for sold/completed listings."""
+        # Clean query similar to regular search
+        clean_query = re.sub(r"\(['\"][^)]+['\"]\)", "", query)
+        search_terms = [t for t in clean_query.split() if t and not t.startswith("-")]
+        encoded_query = "+".join(search_terms)
+        # LH_Sold=1 and LH_Complete=1 for sold listings, _sop=13 for most recent
+        return f"https://www.ebay.com/sch/i.html?_nkw={encoded_query}&LH_Sold=1&LH_Complete=1&_sop=13&LH_PrefLoc=1"
+
+    def scrape_sold_prices(self, page, query: str) -> dict | None:
+        """Scrape sold listings and return average price info."""
+        url = self.build_sold_search_url(query)
+        prices = []
+
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_selector(".srp-results", timeout=10000)
+            time.sleep(1.5)
+
+            items = page.query_selector_all("li.s-card")
+
+            for item in items[:30]:  # Check up to 30 items to get 20 valid sold
+                try:
+                    # Skip sponsored/ad items - real sold items have "Sold" in text
+                    item_text = item.inner_text()
+                    if "Sold" not in item_text or "Shop on eBay" in item_text:
+                        continue
+
+                    # Use the correct price selector for sold listings
+                    price_el = item.query_selector(".s-card__price")
+                    if not price_el:
+                        continue
+
+                    price_text = price_el.inner_text()
+                    # Skip price ranges
+                    if " to " in price_text.lower():
+                        continue
+
+                    price = self.parse_price(price_text)
+                    if price and price > 0:
+                        prices.append(price)
+                        if len(prices) >= 20:
+                            break
+                except:
+                    continue
+
+            if prices:
+                return {
+                    "avg_price": round(sum(prices) / len(prices), 2),
+                    "num_sold": len(prices),
+                    "updated": datetime.now().isoformat()
+                }
+        except Exception as e:
+            print(f"      [Sold] Error fetching: {e}")
+
+        return None
+
+    def get_sold_price(self, page, title: str, force_refresh: bool = False) -> dict | None:
+        """Get sold price from cache or fetch fresh."""
+        cache_key = self._get_cache_key(title)
+        if not cache_key:
+            return None
+
+        cache = self._load_sold_cache()
+
+        # Check cache first
+        if not force_refresh and cache_key in cache:
+            entry = cache[cache_key]
+            if self._is_cache_valid(entry):
+                return entry
+
+        # Fetch fresh data
+        result = self.scrape_sold_prices(page, cache_key)
+        if result:
+            cache[cache_key] = result
+            self._save_sold_cache(cache)
+            return result
+
+        return None
+
+    # ============================================
 
     def build_search_url(self, query: str, auction: bool = False) -> str:
         # Remove exclusion terms and OR groups from eBay search (we filter locally)
@@ -345,10 +465,10 @@ class EbayCardMonitor:
                 seen_in_search.add(dedupe_key)
 
                 # Check persistent seen_listings (across runs) for BIN deals
+                # Items stay visible until manually hidden via link in email
                 player_seen = self._get_player_seen()
                 if listing["item_id"] and listing["item_id"] not in player_seen:
                     deals.append(listing)
-                    self._mark_seen(listing["item_id"])
                 elif not listing["item_id"]:
                     deals.append(listing)
 
@@ -384,10 +504,10 @@ class EbayCardMonitor:
                 listing["numbered"] = numbered
                 listing["tier_price"] = tier_price
                 # Check persistent seen_listings (across runs) for BIN deals
+                # Items stay visible until manually hidden via link in email
                 player_seen = self._get_player_seen()
                 if listing["item_id"] and listing["item_id"] not in player_seen:
                     deals.append(listing)
-                    self._mark_seen(listing["item_id"])
                 elif not listing["item_id"]:
                     deals.append(listing)
 
@@ -502,8 +622,21 @@ class EbayCardMonitor:
                     body += f"   ${deal['price']:.2f}"
                     if deal['shipping'] > 0:
                         body += f" + ${deal['shipping']:.2f} ship"
-                    body += f" (max ${deal.get('tier_price', 0):.2f})\n"
-                    body += f"   {deal['link']}\n\n"
+                    body += f" (max ${deal.get('tier_price', 0):.2f})"
+                    # Add sold price comparison
+                    if deal.get('sold_info'):
+                        avg = deal['sold_info']['avg_price']
+                        diff = deal['price'] - avg
+                        if diff < 0:
+                            body += f" | Avg sold: ${avg:.2f} (${abs(diff):.2f} below)"
+                        else:
+                            body += f" | Avg sold: ${avg:.2f} (${diff:.2f} above)"
+                    body += "\n"
+                    body += f"   {deal['link']}\n"
+                    if deal.get('item_id'):
+                        from urllib.parse import quote
+                        body += f"   [Hide] http://localhost:5050/hide?player={quote(player)}&id={deal['item_id']}\n"
+                    body += "\n"
 
             if numbered_auctions:
                 body += f"🔨 AUCTIONS ({len(numbered_auctions)})\n\n"
@@ -535,7 +668,19 @@ class EbayCardMonitor:
                     body += f"   ${deal['price']:.2f}"
                     if deal['shipping'] > 0:
                         body += f" + ${deal['shipping']:.2f} ship"
-                    body += f"\n   {deal['link']}\n\n"
+                    # Add sold price comparison
+                    if deal.get('sold_info'):
+                        avg = deal['sold_info']['avg_price']
+                        diff = deal['price'] - avg
+                        if diff < 0:
+                            body += f" | Avg sold: ${avg:.2f} (${abs(diff):.2f} below)"
+                        else:
+                            body += f" | Avg sold: ${avg:.2f} (${diff:.2f} above)"
+                    body += f"\n   {deal['link']}\n"
+                    if deal.get('item_id'):
+                        from urllib.parse import quote
+                        body += f"   [Hide] http://localhost:5050/hide?player={quote(player)}&id={deal['item_id']}\n"
+                    body += "\n"
 
             if other_auctions:
                 body += f"🔨 AUCTIONS ({len(other_auctions)})\n\n"
@@ -693,6 +838,26 @@ class EbayCardMonitor:
 
                     time.sleep(random.uniform(2, 4))
 
+                # Fetch sold prices for BIN deals (cached weekly)
+                all_bin_deals = numbered_deals + other_deals
+                if all_bin_deals:
+                    print(f"\n   💰 Fetching sold prices for {len(all_bin_deals)} deals...")
+                    cached_count = 0
+                    fetched_count = 0
+                    for deal in all_bin_deals:
+                        cache_key = self._get_cache_key(deal['title'])
+                        cache = self._load_sold_cache()
+                        if cache_key in cache and self._is_cache_valid(cache[cache_key]):
+                            deal['sold_info'] = cache[cache_key]
+                            cached_count += 1
+                        else:
+                            sold_info = self.get_sold_price(page, deal['title'])
+                            if sold_info:
+                                deal['sold_info'] = sold_info
+                                fetched_count += 1
+                            time.sleep(random.uniform(1, 2))
+                    print(f"      ✅ {cached_count} cached, {fetched_count} fetched")
+
                 context.close()
 
                 # Summary for player
@@ -779,17 +944,95 @@ class EbayCardMonitor:
         queue_file.unlink()
         print("📬 Queue cleared")
 
+    def refresh_sold_cache(self):
+        """Pre-populate sold prices cache for all watchlist items."""
+        print("============================================================")
+        print("Sold Price Cache Refresh")
+        print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("============================================================\n")
+
+        if not PLAYWRIGHT_AVAILABLE:
+            print("❌ Playwright not installed.")
+            return
+
+        watchlist = load_watchlist()
+        cache = self._load_sold_cache()
+        queries_to_refresh = set()
+
+        # Collect all unique cache keys from watchlist
+        for player, config in watchlist.items():
+            # Add player name as base search
+            queries_to_refresh.add(player.lower())
+
+            # Add numbered query
+            if "numbered" in config:
+                key = self._get_cache_key(config["numbered"]["query"])
+                if key:
+                    queries_to_refresh.add(key)
+
+            # Add other searches
+            for search in config.get("searches", []):
+                key = self._get_cache_key(search["query"])
+                if key:
+                    queries_to_refresh.add(key)
+
+        # Filter to only queries needing refresh
+        stale_queries = []
+        for query in queries_to_refresh:
+            if query not in cache or not self._is_cache_valid(cache[query]):
+                stale_queries.append(query)
+
+        print(f"Found {len(queries_to_refresh)} unique queries")
+        print(f"Need to refresh {len(stale_queries)} stale queries\n")
+
+        if not stale_queries:
+            print("✅ All cache entries are fresh!")
+            return
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                viewport={"width": 1920, "height": 1080}
+            )
+            page = context.new_page()
+
+            for i, query in enumerate(stale_queries, 1):
+                print(f"[{i}/{len(stale_queries)}] Fetching: {query[:50]}...")
+                result = self.scrape_sold_prices(page, query)
+                if result:
+                    cache[query] = result
+                    print(f"   ✅ Avg: ${result['avg_price']:.2f} ({result['num_sold']} sold)")
+                else:
+                    print(f"   ❌ No data found")
+
+                self._save_sold_cache(cache)
+                time.sleep(random.uniform(2, 4))
+
+            browser.close()
+
+        print(f"\n✅ Cache refresh complete!")
+
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="eBay Card Monitor")
     parser.add_argument("--clear", metavar="PLAYER", help="Clear history for a specific player")
     parser.add_argument("--clear-all", action="store_true", help="Clear all history")
+    parser.add_argument("--hide", nargs=2, metavar=("PLAYER", "ITEM_ID"), help="Hide a specific item for a player")
+    parser.add_argument("--refresh-sold", action="store_true", help="Refresh sold prices cache (run weekly)")
     args = parser.parse_args()
 
     monitor = EbayCardMonitor()
 
-    # Handle clear commands
+    # Handle clear/hide commands
+    if args.hide:
+        player, item_id = args.hide
+        monitor.current_player = player
+        monitor._mark_seen(item_id)
+        monitor._save_seen_listings()
+        print(f"Hidden item {item_id} for {player}.")
+        return
     if args.clear:
         monitor.clear_player_history(args.clear)
         return
@@ -797,6 +1040,9 @@ def main():
         monitor.seen_listings = {}
         monitor._save_seen_listings()
         print("Cleared all history.")
+        return
+    if args.refresh_sold:
+        monitor.refresh_sold_cache()
         return
 
     if not PLAYWRIGHT_AVAILABLE:
