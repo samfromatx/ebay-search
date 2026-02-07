@@ -141,19 +141,67 @@ class EbayCardMonitor:
             json.dump(cache, f, indent=2)
 
     def _get_cache_key(self, title: str) -> str:
-        """Generate cache key from listing title - extract key terms."""
-        # Normalize: lowercase, remove special chars, keep important terms
+        """Generate precise cache key from listing title for sold price lookup.
+
+        Keeps: player name, card number (#XX), parallel/insert names, set names
+        Excludes graded terms if not in original title
+        """
+        original_title = title
         title = title.lower()
-        # Remove common noise words
-        noise = ['the', 'a', 'an', 'and', 'or', 'of', 'for', 'to', 'in', 'on', 'card', 'cards',
-                 'lot', 'rookie', 'rc', 'base', 'basketball', 'nba', '2023-24', '2024-25',
-                 '2023', '2024', 'panini', 'topps']
-        # Keep alphanumeric and /
-        words = re.findall(r'[a-z0-9/]+', title)
-        # Filter noise and short words
-        key_words = [w for w in words if w not in noise and len(w) > 1]
-        # Limit to first 8 meaningful words
-        return ' '.join(key_words[:8])
+
+        # Check if this is a graded card
+        is_graded = any(g in title for g in ['psa', 'bgs', 'sgc', 'cgc'])
+
+        # Important terms to always keep (parallels, inserts, sets)
+        important_patterns = [
+            r'#\d+',  # Card numbers like #20, #136
+            r'/\d+',  # Numbered cards like /99, /199
+        ]
+
+        # Extract card numbers before normalization
+        card_nums = re.findall(r'#\d+', title)
+        numbered = re.findall(r'/\d+', title)
+
+        # Words that are noise
+        noise = {'the', 'a', 'an', 'and', 'or', 'of', 'for', 'to', 'in', 'on',
+                 'card', 'cards', 'new', 'brand', 'hot', 'rare', 'sp', 'ssp',
+                 'lot', 'rc', 'nba', 'panini', 'topps', 'opens', 'tab', 'window'}
+
+        # Keep these important parallel/insert/set names
+        keep_words = {'prizm', 'select', 'mosaic', 'optic', 'hoops', 'donruss',
+                      'silver', 'gold', 'holo', 'refractor', 'shimmer', 'mojo',
+                      'kaleidoscopic', 'fast', 'break', 'courtside', 'scope',
+                      'pink', 'blue', 'red', 'green', 'orange', 'purple', 'ice',
+                      'cracked', 'wave', 'hyper', 'disco', 'speckle', 'camo',
+                      'rookie', 'base', 'variation', 'parallel', 'insert',
+                      'psa', 'bgs', 'sgc', 'cgc', '10', '9', '8'}
+
+        # Extract words, keeping alphanumeric
+        words = re.findall(r'[a-z0-9]+', title)
+
+        # Build key: keep player name words + important terms
+        key_words = []
+        for word in words:
+            if word in noise:
+                continue
+            if len(word) < 2:
+                continue
+            # Keep the word if it's important or looks like a name
+            if word in keep_words or len(word) > 3:
+                key_words.append(word)
+
+        # Add card numbers back
+        for num in card_nums:
+            key_words.append(num.replace('#', ''))
+
+        # Limit to reasonable length
+        result = ' '.join(key_words[:10])
+
+        # If not graded, append exclusions
+        if not is_graded:
+            result += ' -psa -bgs -sgc -cgc -graded'
+
+        return result
 
     def _is_cache_valid(self, cache_entry: dict) -> bool:
         """Check if cache entry is still valid (within SOLD_CACHE_DAYS)."""
@@ -165,10 +213,16 @@ class EbayCardMonitor:
 
     def build_sold_search_url(self, query: str) -> str:
         """Build eBay URL for sold/completed listings."""
-        # Clean query similar to regular search
-        clean_query = re.sub(r"\(['\"][^)]+['\"]\)", "", query)
-        search_terms = [t for t in clean_query.split() if t and not t.startswith("-")]
-        encoded_query = "+".join(search_terms)
+        # Split into include and exclude terms
+        terms = query.split()
+        include_terms = [t for t in terms if not t.startswith("-")]
+        exclude_terms = [t[1:] for t in terms if t.startswith("-")]  # Remove the -
+
+        # Build the query with exclusions
+        encoded_query = "+".join(include_terms)
+        for exc in exclude_terms:
+            encoded_query += f"+-{exc}"
+
         # LH_Sold=1 and LH_Complete=1 for sold listings, _sop=13 for most recent
         return f"https://www.ebay.com/sch/i.html?_nkw={encoded_query}&LH_Sold=1&LH_Complete=1&_sop=13&LH_PrefLoc=1"
 
