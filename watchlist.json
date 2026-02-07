@@ -32,9 +32,7 @@
       ]
     },
     "searches": [
-      {"query": "Stephon Castle 234 silver PSA 9", "price": 49.00},
-      {"query": "Stephon Castle rookie lot", "price": 15.00},
-      {"query": "Stephon Castle Premier", "price": 5.00}
+      {"query": "Stephon Castle 234 silver PSA 9", "price": 49.00}
     ]
   },
 
@@ -62,7 +60,7 @@
       ]
     },
     "searches": [
-      {"query": "Alexandre Sarr Rookie lot", "price": 7.00}
+      {"query": "Alexandre Sarr Rookie PSA 9", "price": 7.00}
     ]
   },
 
@@ -100,7 +98,6 @@
       ]
     },
     "searches": [
-      {"query": "Keyonte George rookie lot", "price": 7.00},
       {"query": "Keyonte George 127 prizm PSA 10", "price": 32.00}
     ]
   },
@@ -115,7 +112,6 @@
       ]
     },
     "searches": [
-      {"query": "Brandon Miller rookie lot", "price": 7.00},
       {"query": "Brandon Miller 152 prizm PSA 9", "price": 27.00},
       {"query": "Brandon Miller 286 PSA 10", "price": 25.00}
     ]
@@ -146,8 +142,61 @@
   },
 
   "Kobe Bryant": {
+      "numbered": {
+        "query": "kobe bryant numbered",
+        "tiers": [
+          {"min": 75, "max": 198, "price": 15.00},
+          {"min": 25, "max": 74, "price": 40.00},
+          {"min": 1, "max": 24, "price": 90.00}
+        ]
+      },
     "searches": [
       {"query": "Kobe Bryant 45 Swirlorama", "price": 42.00}
+    ]
+  },
+  
+  "Luka Doncic": {
+      "numbered": {
+        "query": "Luka Doncic numbered",
+        "tiers": [
+          {"min": 75, "max": 198, "price": 15.00},
+          {"min": 25, "max": 74, "price": 40.00},
+          {"min": 1, "max": 24, "price": 90.00}
+        ]
+      },
+    "searches": [
+      {"query": "Luka Doncic lot", "price": 10.00},
+      {"query": "Luka Doncic auto", "price": 20.00}
+    ]
+  },
+
+  "stephen curry": {
+      "numbered": {
+        "query": "stephen curry numbered",
+        "tiers": [
+          {"min": 75, "max": 198, "price": 15.00},
+          {"min": 25, "max": 74, "price": 40.00},
+          {"min": 1, "max": 24, "price": 90.00}
+        ]
+      },
+    "searches": [
+      {"query": "stephen curry lot", "price": 10.00},
+      {"query": "stephen curry auto", "price": 20.00}
+    ]
+  },
+
+  "Anthony Edwards": {
+      "numbered": {
+        "query": "Anthony Edwards numbered",
+        "tiers": [
+          {"min": 75, "max": 198, "price": 15.00},
+          {"min": 25, "max": 74, "price": 40.00},
+          {"min": 1, "max": 24, "price": 90.00}
+        ]
+      },
+    "searches": [
+      {"query": "Anthony Edwards lot", "price": 10.00},
+      {"query": "Anthony Edwards auto", "price": 20.00}
     ]
   },
 
