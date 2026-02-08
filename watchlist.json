@@ -85,7 +85,9 @@
         {"min": 1, "max": 74, "price": 40.00}
       ]
     },
-    "searches": []
+    "searches": [
+      {"query": "Carter Bryant lot", "price": 8.00}
+    ]
   },
 
   "Keyonte George": {
@@ -145,9 +147,9 @@
       "numbered": {
         "query": "kobe bryant numbered",
         "tiers": [
-          {"min": 75, "max": 198, "price": 15.00},
-          {"min": 25, "max": 74, "price": 40.00},
-          {"min": 1, "max": 24, "price": 90.00}
+            {"min": 75, "max": 198, "price": 30.00},
+            {"min": 25, "max": 74, "price": 60.00},
+            {"min": 1, "max": 24, "price": 90.00}
         ]
       },
     "searches": [
@@ -159,14 +161,13 @@
       "numbered": {
         "query": "Luka Doncic numbered",
         "tiers": [
-          {"min": 75, "max": 198, "price": 15.00},
-          {"min": 25, "max": 74, "price": 40.00},
-          {"min": 1, "max": 24, "price": 90.00}
+            {"min": 75, "max": 198, "price": 30.00},
+            {"min": 25, "max": 74, "price": 60.00},
+            {"min": 1, "max": 24, "price": 90.00}
         ]
       },
     "searches": [
-      {"query": "Luka Doncic lot", "price": 10.00},
-      {"query": "Luka Doncic auto", "price": 20.00}
+      {"query": "Luka Doncic auto", "price": 50.00}
     ]
   },
 
@@ -174,14 +175,14 @@
       "numbered": {
         "query": "stephen curry numbered",
         "tiers": [
-          {"min": 75, "max": 198, "price": 15.00},
-          {"min": 25, "max": 74, "price": 40.00},
+          {"min": 75, "max": 198, "price": 30.00},
+          {"min": 25, "max": 74, "price": 60.00},
           {"min": 1, "max": 24, "price": 90.00}
         ]
       },
     "searches": [
       {"query": "stephen curry lot", "price": 10.00},
-      {"query": "stephen curry auto", "price": 20.00}
+      {"query": "stephen curry auto", "price": 50.00}
     ]
   },
 
@@ -189,18 +190,28 @@
       "numbered": {
         "query": "Anthony Edwards numbered",
         "tiers": [
-          {"min": 75, "max": 198, "price": 15.00},
-          {"min": 25, "max": 74, "price": 40.00},
-          {"min": 1, "max": 24, "price": 90.00}
+            {"min": 75, "max": 198, "price": 30.00},
+            {"min": 25, "max": 74, "price": 60.00},
+            {"min": 1, "max": 24, "price": 90.00}
         ]
       },
     "searches": [
-      {"query": "Anthony Edwards lot", "price": 10.00},
-      {"query": "Anthony Edwards auto", "price": 20.00}
+      {"query": "Anthony Edwards auto", "price": 50.00},
+      {"query": "Anthony Edwards select courtside blue 300 PSA 10", "price": 65.00},
+      {"query": "Anthony Edwards select courtside blue 300 PSA 9", "price": 25.00},
+      {"query": "Anthony Edwards select courtside blue wave 237", "price": 30.00}
     ]
   },
 
   "Shai Gilgeous-Alexander": {
+      "numbered": {
+        "query": "Shai Gilgeous-Alexander numbered",
+        "tiers": [
+            {"min": 75, "max": 198, "price": 30.00},
+            {"min": 25, "max": 74, "price": 60.00},
+            {"min": 1, "max": 24, "price": 90.00}
+        ]
+      },
     "searches": [
       {"query": "Shai Gilgeous-Alexander PSA 9", "price": 25.00}
     ]
