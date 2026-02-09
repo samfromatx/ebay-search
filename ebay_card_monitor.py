@@ -211,6 +211,34 @@ class EbayCardMonitor:
         age_days = (datetime.now() - updated).days
         return age_days < SOLD_CACHE_DAYS
 
+    COMMON_PRINT_RUNS = [10, 25, 49, 75, 99, 149, 175, 199, 249, 299, 399, 499]
+
+    def _get_common_print_run(self, tier: dict) -> int:
+        """Return the first common print run that falls within the tier's min/max range."""
+        for pr in self.COMMON_PRINT_RUNS:
+            if tier["min"] <= pr <= tier["max"]:
+                return pr
+        return tier["max"]
+
+    def _get_tier_sold_key(self, numbered_query: str, tier: dict) -> str:
+        """Generate a sold cache key for a specific tier of a numbered search."""
+        # Remove 'numbered' from the query
+        base = re.sub(r'\bnumbered\b', '', numbered_query, flags=re.IGNORECASE).strip()
+        # Clean up extra spaces
+        base = re.sub(r'\s+', ' ', base)
+        print_run = self._get_common_print_run(tier)
+        # Split into include and exclude terms
+        include = [t for t in base.split() if not t.startswith('-')]
+        exclude = [t for t in base.split() if t.startswith('-')]
+        key = ' '.join(include) + f' /{print_run}'
+        # Add grading exclusions if not already present
+        has_grading_exclude = any(t.lstrip('-') in ('psa', 'bgs', 'sgc', 'cgc', 'graded') for t in exclude)
+        if not has_grading_exclude:
+            exclude.extend(['-psa', '-bgs', '-sgc', '-cgc', '-graded'])
+        if exclude:
+            key += ' ' + ' '.join(exclude)
+        return key.lower()
+
     def build_sold_search_url(self, query: str) -> str:
         """Build eBay URL for sold/completed listings."""
         # Split into include and exclude terms
@@ -557,6 +585,10 @@ class EbayCardMonitor:
             if listing["price"] <= tier_price:
                 listing["numbered"] = numbered
                 listing["tier_price"] = tier_price
+                # Store matched tier for sold price lookups
+                matched_tier = next(t for t in tiers if t["min"] <= numbered <= t["max"])
+                listing["tier_max"] = matched_tier["max"]
+                listing["numbered_query"] = query
                 # Check persistent seen_listings (across runs) for BIN deals
                 # Items stay visible until manually hidden via link in email
                 player_seen = self._get_player_seen()
@@ -642,6 +674,10 @@ class EbayCardMonitor:
             if listing["price"] < target_price:
                 listing["numbered"] = numbered
                 listing["tier_price"] = tier_price
+                # Store matched tier for sold price lookups
+                matched_tier = next(t for t in tiers if t["min"] <= numbered <= t["max"])
+                listing["tier_max"] = matched_tier["max"]
+                listing["numbered_query"] = query
                 # Mark as DEAL if 0-2 bids and price < 50% of tier
                 listing["is_deal"] = listing.get("bids", 0) <= 2 and listing["price"] < (tier_price * 0.5)
                 deals.append(listing)
@@ -827,6 +863,7 @@ class EbayCardMonitor:
                     numbered_config = config["numbered"]
                     query = numbered_config["query"]
                     tiers = numbered_config["tiers"]
+                    numbered_search_sold = numbered_config.get("search_sold", True)
 
                     print(f"\n   📊 Numbered search: {query}")
                     min_price = min(t["price"] for t in tiers)
@@ -839,6 +876,7 @@ class EbayCardMonitor:
                         dedupe_key = deal["item_id"] or deal.get("link", "")
                         if dedupe_key not in player_seen:
                             player_seen.add(dedupe_key)
+                            deal["search_sold"] = numbered_search_sold
                             numbered_deals.append(deal)
 
                     # Auctions
@@ -865,6 +903,8 @@ class EbayCardMonitor:
                     print(f"\n   🔍 Search: {query}")
                     print(f"      Max: ${max_price:.2f}")
 
+                    search_sold = search.get("search_sold", True)
+
                     # BIN deals
                     deals = self.find_deals(page, query, max_price)
                     for deal in deals:
@@ -872,6 +912,7 @@ class EbayCardMonitor:
                         if dedupe_key not in player_seen:
                             player_seen.add(dedupe_key)
                             deal["search_query"] = query
+                            deal["search_sold"] = search_sold
                             other_deals.append(deal)
 
                     # Auctions
@@ -894,20 +935,28 @@ class EbayCardMonitor:
 
                 # Fetch sold prices for BIN deals (cached weekly)
                 all_bin_deals = numbered_deals + other_deals
-                if all_bin_deals:
-                    print(f"\n   💰 Fetching sold prices for {len(all_bin_deals)} deals...")
+                sold_eligible = [d for d in all_bin_deals if d.get("search_sold", True)]
+                if sold_eligible:
+                    print(f"\n   💰 Fetching sold prices for {len(sold_eligible)} deals...")
                     cached_count = 0
                     fetched_count = 0
-                    for deal in all_bin_deals:
-                        cache_key = self._get_cache_key(deal['title'])
+                    for deal in sold_eligible:
+                        # Use tier-specific key for numbered deals, title-based for others
+                        if deal.get("tier_max") and deal.get("numbered_query"):
+                            tier = {"min": 0, "max": deal["tier_max"]}  # Only max matters for key
+                            cache_key = self._get_tier_sold_key(deal["numbered_query"], tier)
+                        else:
+                            cache_key = self._get_cache_key(deal['title'])
                         cache = self._load_sold_cache()
                         if cache_key in cache and self._is_cache_valid(cache[cache_key]):
                             deal['sold_info'] = cache[cache_key]
                             cached_count += 1
                         else:
-                            sold_info = self.get_sold_price(page, deal['title'])
-                            if sold_info:
-                                deal['sold_info'] = sold_info
+                            result = self.scrape_sold_prices(page, cache_key)
+                            if result:
+                                cache[cache_key] = result
+                                self._save_sold_cache(cache)
+                                deal['sold_info'] = result
                                 fetched_count += 1
                             time.sleep(random.uniform(1, 2))
                     print(f"      ✅ {cached_count} cached, {fetched_count} fetched")
@@ -1018,14 +1067,19 @@ class EbayCardMonitor:
             # Add player name as base search
             queries_to_refresh.add(player.lower())
 
-            # Add numbered query
+            # Add per-tier queries for numbered searches
             if "numbered" in config:
-                key = self._get_cache_key(config["numbered"]["query"])
-                if key:
-                    queries_to_refresh.add(key)
+                numbered_config = config["numbered"]
+                if numbered_config.get("search_sold", True):
+                    for tier in numbered_config["tiers"]:
+                        key = self._get_tier_sold_key(numbered_config["query"], tier)
+                        if key:
+                            queries_to_refresh.add(key)
 
-            # Add other searches
+            # Add other searches (respecting search_sold flag)
             for search in config.get("searches", []):
+                if not search.get("search_sold", True):
+                    continue
                 key = self._get_cache_key(search["query"])
                 if key:
                     queries_to_refresh.add(key)

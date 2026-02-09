@@ -73,7 +73,9 @@
         {"min": 1, "max": 74, "price": 60.00}
       ]
     },
-    "searches": []
+    "searches": [
+        {"query": "Dylan Harper refractor chrome", "price": 15.00}
+    ]
   },
 
   "Carter Bryant": {
@@ -86,7 +88,19 @@
       ]
     },
     "searches": [
-      {"query": "Carter Bryant lot", "price": 8.00}
+      {"query": "Carter Bryant refractor chrome", "price": 8.00}
+    ]
+  },
+  
+  "kon knueppel": {
+    "searches": [
+      {"query": "kon knueppel refractor holo", "price": 12.00}
+    ]
+  },
+  
+  "cooper flagg": {
+    "searches": [
+      {"query": "cooper flagg refractor holo", "price": 20.00}
     ]
   },
 
@@ -181,7 +195,7 @@
         ]
       },
     "searches": [
-      {"query": "stephen curry lot", "price": 10.00},
+      {"query": "stephen curry lot", "price": 10.00, "search_sold": false},
       {"query": "stephen curry auto", "price": 50.00}
     ]
   },
