@@ -96,6 +96,13 @@ class EbayCardMonitor:
         return {}
 
     def _save_seen_listings(self):
+        # Merge in any hides added by the clear server during the scan
+        disk_data = self._load_seen_listings()
+        for player, ids in disk_data.items():
+            if player in self.seen_listings:
+                self.seen_listings[player] |= ids
+            else:
+                self.seen_listings[player] = ids
         with open(SEEN_LISTINGS_FILE, "w") as f:
             # Convert sets to lists for JSON serialization
             data = {player: list(ids) for player, ids in self.seen_listings.items()}
