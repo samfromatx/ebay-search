@@ -15,6 +15,8 @@ import time
 import random
 import re
 import os
+import fcntl
+import sys
 from datetime import datetime
 from pathlib import Path
 import smtplib
@@ -842,6 +844,10 @@ class EbayCardMonitor:
             watchlist = load_watchlist()
 
             for player, config in watchlist.items():
+                if not config.get("active", True):
+                    print(f"\n   Skipping {player} (inactive)")
+                    continue
+
                 print(f"\n{'='*50}")
                 print(f"🏀 {player}")
                 print(f"{'='*50}")
@@ -1071,6 +1077,8 @@ class EbayCardMonitor:
 
         # Collect all unique cache keys from watchlist
         for player, config in watchlist.items():
+            if not config.get("active", True):
+                continue
             # Add player name as base search
             queries_to_refresh.add(player.lower())
 
@@ -1167,7 +1175,20 @@ def main():
         print("     playwright install chromium\n")
         return
 
-    monitor.run_scan()
+    # Use a lock file to prevent concurrent scans
+    lock_file = Path(__file__).parent / ".scan.lock"
+    lock_fd = open(lock_file, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("Another scan is already running. Exiting.")
+        sys.exit(0)
+
+    try:
+        monitor.run_scan()
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 
 
 if __name__ == "__main__":
